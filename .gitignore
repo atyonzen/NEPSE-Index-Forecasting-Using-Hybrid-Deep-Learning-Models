@@ -1,0 +1,11 @@
+
+# Ignore the entire directory
+/extra_backup
+/model_saved/check_point
+/hyper_model
+/hyper_model
+/__pycache__
+/.venv/
+/.vscode
+# Ignore all .keras files
+*.keras
