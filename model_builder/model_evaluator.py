@@ -1,57 +1,50 @@
 # Import necessary libraries
 import os
 import sys
-# sys.path.append('d:\\data sceince with python\\model_helpers')
 sys.path.append(os.path.abspath('') + os.path.sep + 'model_helpers')
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 from tensorflow import keras
 from variable_config import LOOK_BACK as look_back, EPOCHS, file_name
-from data_wrangler import data_wrangler, train_val_test_split
+from data_wrangler import data_wrangler, split_into_datasets
 from sklearn.model_selection import TimeSeriesSplit
 from sklearn.metrics import mean_squared_error
+os.environ['KERAS_BACKEND'] = 'tensorflow'
+os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'
 
 # Call data_wrangler to create features and label
 X, y, data, scaler = data_wrangler(file_name, look_back)
 
 # Hold out validation data
-X_train, X_val, X_test, y_train, y_val, y_test = train_val_test_split(X, y, data, look_back)
+X_train, X_val, X_test, y_train, y_val, y_test = split_into_datasets(X, y, look_back, get_val_set=True)
 
 # Load saved model
-model = keras.models.load_model('model_saved/best_model.keras')
+model = keras.models.load_model('hyper_model/best_model/best_model.keras')
 
 def evaluate_model():
 
     # Model summary
     print(model.summary())
+
+    # print(model.evaluate(X_test, y_test))
+    
     
     # Evaluate the hypermodel on the test data.
-    test_result, test_metric = model.evaluate(X_test, y_test)
+    # test_loss, test_mae, test_mape, test_r2 = model.evaluate(X_test, y_test)
+    test_result = model.evaluate(X_test, y_test)
     print('Evaluation of model:\n')
-    print(f'Test Loss: {test_result}, Test Metric: {test_metric}')
-    # print(
-    #     'Test Evaluation of model:\n',
-    #     test_result,
-    #     'loss(mae): %1f, mape: %2f, r2_score: %3f]:' % (
-    #     scaler.inverse_transform(np.array([test_result[0]]).reshape(-1, 1))[0][0],
-    #     test_result[1],
-    #     test_result[1]
-    #     )
-    # )
-    # Calculate RMSE performance matrics
-    # Train data RMSE
-    # import math
-    # from sklearn.metrics import mean_squared_error
-    # math.sqrt(mean_squared_error(y_train, train_predict))
-
-    # Test data RMSE
-    # math.sqrt(mean_squared_error(y_test, test_predict))
-    # exit()
-
+    print(f'Test Metric: {test_result}')
+    print(
+        'Test Evaluation of model:\n',
+        'mae: %1f, mape: %2f, r2_score: %3f]:' % (
+        scaler.inverse_transform(np.array([test_result[1]]).reshape(-1, 1))[0][0],
+        test_result[2],
+        test_result[3]
+        )
+    )
 
     # TimeSeriesSplit for k-fold validation for time series data
-
     # The data will be split into 5 consecutive folds, where each fold trains on 
     # a progressively larger portion of the dataset and tests on the subsequent time period.
     tscv = TimeSeriesSplit(n_splits=5)
@@ -66,7 +59,8 @@ def evaluate_model():
         y_train_k, y_test_k = y[train_index], y[test_index]
 
         # Train the model
-        model.fit(X_train_k, y_train_k, epochs=EPOCHS, verbose=0)
+        # early_stop = keras.callbacks.EarlyStopping(monitor='loss', min_delta=0.0001, patience=5, mode='min')
+        # model.fit(X_train_k, y_train_k, epochs=EPOCHS, callbacks=[early_stop], verbose=0)
 
         # Evaluate the model on the test set
         y_pred_k = model.predict(X_test_k)
@@ -177,5 +171,5 @@ def plot_model():
     # plt.show()
 
 
-# evaluate_model()
+evaluate_model()
 plot_model()

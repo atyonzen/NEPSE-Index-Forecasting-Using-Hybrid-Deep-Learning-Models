@@ -43,7 +43,7 @@ def data_wrangler(file_name, look_back=LOOK_BACK, transform_data = True):
 
 
 # Splits dataset into training, validation and testing sets
-def split_into_datasets(X, y, look_back = LOOK_BACK, test_size = 0.2, get_val_set = False):
+def split_into_datasets(X, y, look_back = LOOK_BACK, test_size = 0.2, val_size = 0.125, get_val_set = False):
     
     # Test_size in fractional number between 0 and 1 segregates the proportion of data. 
     # If integer value is provided at test_size, it seggregates that numbers of data as test set.
@@ -53,8 +53,8 @@ def split_into_datasets(X, y, look_back = LOOK_BACK, test_size = 0.2, get_val_se
 
     # It is assumed to create validation set from the training set.
     if(get_val_set):
-        X_train, X_val = train_test_split(X_train, test_size=0.125, random_state=42, shuffle=False)
-        y_train, y_val = train_test_split(y_train, test_size=0.125, random_state=42, shuffle=False)
+        X_train, X_val = train_test_split(X_train, test_size=val_size, random_state=42, shuffle=False)
+        y_train, y_val = train_test_split(y_train, test_size=val_size, random_state=42, shuffle=False)
         # print(X_train.shape)
         # print(X_val.shape)
         # print(X_test.shape)
@@ -72,11 +72,11 @@ def split_into_datasets(X, y, look_back = LOOK_BACK, test_size = 0.2, get_val_se
 
 
 # Creates train, validation and test datasets
-def train_val_test_split(X, y, look_back = LOOK_BACK, train_test_split = 0.8, val_split = 0.2):
+def train_val_test_split(X, y, look_back = LOOK_BACK, test_split = 0.8, val_split = 0.2):
     
     # Split the data into training, validation and testing sets
     # It is assumed to create validation set from training set
-    training_size = int(len(X) * train_test_split)
+    training_size = int(len(X) * test_split)
     validation_size = int(len(X) * val_split)
     X_train, y_train = X[:training_size - validation_size], y[:training_size - validation_size]
     X_val, y_val = X_train[-validation_size:], y_train[-validation_size:]

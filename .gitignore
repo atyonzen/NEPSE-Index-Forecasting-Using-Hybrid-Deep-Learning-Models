@@ -1,11 +1,10 @@
 
 # Ignore the entire directory
 /extra_backup
-/model_saved/check_point
-/hyper_model
-/hyper_model
+/hyper_model/best_model
+/hyper_model/tuning
 /__pycache__
-/.venv/
+/.venv
 /.vscode
 # Ignore all .keras files
-*.keras
+# *.keras

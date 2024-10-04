@@ -7,10 +7,11 @@ os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'
 # sys.path.append(os.path.abspath('') + os.path.sep + 'model_helpers')
 
 # Define custom variables
-EPOCHS = 200
-MAX_EPOCHS = 3 # max_epochs = 8 or 10 seems good for large or small sample
-LOOK_BACK = 7 # window size for time series data
+EPOCHS = 500
+MAX_EPOCHS = 42  # max_epochs = 8 or 10 seems good for large or small sample
+LOOK_BACK = 5 # window size for time series data
 DISABLE_RESUME = False
+# DISABLE_RESUME = True
 # csv file name without file extension
 file_name = 'nepsealpha0c'
-executions_per_trial=10
+executions_per_trial=5
