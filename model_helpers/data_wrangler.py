@@ -13,7 +13,8 @@ def data_wrangler(file_name, look_back=LOOK_BACK, transform_data = True):
     df = pd.read_csv(f'data_src/{file_name}.csv')
 
     # remove columns which the neural network will not use
-    df = df.drop(['Symbol', 'Date', 'Open', 'High', 'Low', 'Percent Change', 'Volume'], axis=1)
+    # df = df.drop(['Symbol', 'Date', 'Open', 'High', 'Low', 'Percent Change', 'Volume'], axis=1)
+    df = df[['Close']]
 
     # Transform data
     if(transform_data):
@@ -55,10 +56,6 @@ def split_into_datasets(X, y, look_back = LOOK_BACK, test_size = 0.2, val_size =
     if(get_val_set):
         X_train, X_val = train_test_split(X_train, test_size=val_size, random_state=42, shuffle=False)
         y_train, y_val = train_test_split(y_train, test_size=val_size, random_state=42, shuffle=False)
-        # print(X_train.shape)
-        # print(X_val.shape)
-        # print(X_test.shape)
-        # print(X.shape)
 
         # Reshape datasets into [samples, timesteps, features] to satisfy LSTM requirement
         X_train = X_train.reshape(-1, look_back, 1)
@@ -81,12 +78,6 @@ def train_val_test_split(X, y, look_back = LOOK_BACK, test_split = 0.8, val_spli
     X_train, y_train = X[:training_size - validation_size], y[:training_size - validation_size]
     X_val, y_val = X_train[-validation_size:], y_train[-validation_size:]
     X_test, y_test = X[training_size:], y[training_size:]
-    # print(X_train.shape)
-    # print(X_val.shape)
-    # print(X_test.shape)
-    # (155, 7)
-    # (22, 7)
-    # (45, 7)
 
     # Reshape the input data for LSTM
     # Reshape input data into [samples, timesteps, features]

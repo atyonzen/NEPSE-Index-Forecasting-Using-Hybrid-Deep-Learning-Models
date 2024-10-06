@@ -1,8 +1,9 @@
 
 # Ignore the entire directory
 /extra_backup
-/hyper_model/best_model
+/hyper_model/best_model/*.keras
 /hyper_model/tuning
+/hyper_model/check_point/*.keras
 /__pycache__
 /.venv
 /.vscode

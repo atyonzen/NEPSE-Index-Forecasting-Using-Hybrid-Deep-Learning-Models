@@ -5,13 +5,19 @@ sys.path.append(os.path.abspath('') + os.path.sep + 'model_helpers')
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
+import tensorflow as tf
 from tensorflow import keras
-from variable_config import LOOK_BACK as look_back, EPOCHS, file_name
+from variable_config import LOOK_BACK as look_back, file_name, EPOCHS
 from data_wrangler import data_wrangler, split_into_datasets
 from sklearn.model_selection import TimeSeriesSplit
-from sklearn.metrics import mean_squared_error
+from sklearn.metrics import mean_absolute_percentage_error, r2_score
+
 os.environ['KERAS_BACKEND'] = 'tensorflow'
 os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'
+
+# Create determinism and model reproducibility
+tf.keras.utils.set_random_seed(42)
+tf.config.experimental.enable_op_determinism()
 
 # Call data_wrangler to create features and label
 X, y, data, scaler = data_wrangler(file_name, look_back)
@@ -19,16 +25,13 @@ X, y, data, scaler = data_wrangler(file_name, look_back)
 # Hold out validation data
 X_train, X_val, X_test, y_train, y_val, y_test = split_into_datasets(X, y, look_back, get_val_set=True)
 
-# Load saved model
-model = keras.models.load_model('hyper_model/best_model/best_model.keras')
-
 def evaluate_model():
+
+    # Load saved model
+    model = keras.models.load_model('hyper_model/best_model/best_model.keras')
 
     # Model summary
     print(model.summary())
-
-    # print(model.evaluate(X_test, y_test))
-    
     
     # Evaluate the hypermodel on the test data.
     # test_loss, test_mae, test_mape, test_r2 = model.evaluate(X_test, y_test)
@@ -44,13 +47,22 @@ def evaluate_model():
         )
     )
 
+    # https://forecastegy.com/posts/time-series-cross-validation-python/
+    # So make sure your data is sorted before using this method.
+    # This tool automates the expanding window method, that expands the training set while keeping constant the test set.
+    # TimeSeriesSplit respects the temporal order of your data, ensuring that the ‘future’ data is not used to train your model.
     # TimeSeriesSplit for k-fold validation for time series data
     # The data will be split into 5 consecutive folds, where each fold trains on 
     # a progressively larger portion of the dataset and tests on the subsequent time period.
-    tscv = TimeSeriesSplit(n_splits=5)
+
+    k_fold = 7
+    tscv = TimeSeriesSplit(n_splits=k_fold)
 
     # Initialize an array to store the results of each fold
-    fold_results = []
+    fold_results = {
+        'r2_score': [],
+        'mape': []
+    }
 
     # Iterate over each split in TimeSeriesSplit
     for train_index, test_index in tscv.split(X):
@@ -59,42 +71,85 @@ def evaluate_model():
         y_train_k, y_test_k = y[train_index], y[test_index]
 
         # Train the model
-        # early_stop = keras.callbacks.EarlyStopping(monitor='loss', min_delta=0.0001, patience=5, mode='min')
-        # model.fit(X_train_k, y_train_k, epochs=EPOCHS, callbacks=[early_stop], verbose=0)
+        early_stop = keras.callbacks.EarlyStopping(monitor='loss', min_delta=0.0001, patience=5, mode='min')
+        model.fit(X_train_k, y_train_k, epochs=EPOCHS, callbacks=[early_stop], verbose=0)
 
         # Evaluate the model on the test set
         y_pred_k = model.predict(X_test_k)
-        test_mse = mean_squared_error(y_test_k, y_pred_k)
+        test_r2_score = r2_score(y_test_k, y_pred_k)
+        test_mape = mean_absolute_percentage_error(y_test_k, y_pred_k)
 
         # Store the result
-        fold_results.append(test_mse)
-        print(f"Test MSE for fold: {test_mse}")
+        fold_results['r2_score'].append(test_r2_score)
+        fold_results['mape'].append(test_mape)
+        print(f"Test R2_Score for fold: {test_r2_score}")
+        print(f"Test MAPE for fold: {test_mape}")
 
     # Average performance across all folds
-    average_mse = np.mean(fold_results)
-    print(f"Average Test MSE across all folds: {average_mse}")
+    average_r2_score = np.mean(fold_results['r2_score'])
+    average_mape = np.mean(fold_results['mape'])
+    print(f"Average Test R2_Score across all folds: {average_r2_score}")
+    print(f"Average Test MAPE across all folds: {average_mape}")
 
-    plt.plot(range(1, len(fold_results) + 1), fold_results, marker='o')
-    plt.title('MSE on Each Fold')
-    plt.xlabel('Fold')
-    plt.ylabel('MSE')
+    # Max values
+    min_r2_score = np.min(fold_results['r2_score'])
+    max_mape = np.max(fold_results['mape'])
+
+    fig, (ax1, ax2) = plt.subplots(2, sharex=True)
+    fig.suptitle(f'{k_fold}-Fold Validation with TimeSeriesSplit')
+    x_range = range(1, len(fold_results['r2_score']) + 1)
+    # R2 Score
+    ax1.plot(x_range, fold_results['r2_score'], marker='o', c='green', linestyle='--')
+    # ax1.set_title('R2_Score on Each Fold')
+    ax1.set_ylabel('R2_Score')
+
+    # MAPE
+    ax2.plot(x_range, fold_results['mape'], marker='o', c='red', linestyle='--')
+    # ax2.set_title('MAPE on Each Fold')
+    ax2.set_xlabel('Fold')
+    ax2.set_ylabel('MAPE')
+    for i in range(len(fold_results['r2_score'])):
+        # ax1.text(i+1, fold_results['r2_score'][i] + 0.01,  # Offset the y-position slightly
+        #      f'({i+1}, {fold_results["r2_score"][i]:.2f})', fontsize=9, color='red', ha='center')
+        if (fold_results['r2_score'][i] == min_r2_score):
+            xytext_value = (0, 10)
+        else:
+            xytext_value = (0, -15)
+
+        ax1.annotate(f'({fold_results["r2_score"][i]:.3f})', 
+            xy=(i+1, fold_results['r2_score'][i]),      # Point being annotated
+            xytext= xytext_value,                       # Offset the label slightly
+            textcoords='offset points',                 # Use offset points for placement
+            fontsize=9, color='red', ha='center')
+        
+    for i in range(len(fold_results['mape'])):
+        if (fold_results['mape'][i] == max_mape):
+            xytext_value = (0, -15)
+        else:
+            xytext_value = (0, 10)
+        ax2.annotate(f'({fold_results["mape"][i]:.2f})', 
+            xy=(i+1, fold_results['mape'][i]),     # Point being annotated
+            xytext=xytext_value,                   # Offset the label slightly
+            textcoords='offset points',            # Use offset points for placement
+            fontsize=9, color='green', ha='center')
+
     plt.show()
 
 
-def plot_model():
+def plot_model_prediction():
+
+    # model = keras.models.load_model('hyper_model/best_model/best_model.keras')
+    model = keras.models.load_model('hyper_model/best_model/best_model.keras')
 
     # Create dataframe from 1D numy array
     df = pd.DataFrame(data, columns=['Close'])
 
     # Predict using the trained model
     # Predict for x_train, X_test
-    # print(X_train.shape)
-    # exit()
+    print(X_train.shape, X_val.shape, X_test.shape)
     train_predict = model.predict(X_train)
     val_predict = model.predict(X_val)
     test_predict = model.predict(X_test)
-    # print(train_predict.shape)
-    # print(train_predict)
     train_predict = scaler.inverse_transform(train_predict)
     val_predict = scaler.inverse_transform(val_predict)
     test_predict = scaler.inverse_transform(test_predict)
@@ -152,24 +207,32 @@ def plot_model():
     plt.legend(loc='best')
     plt.show()
 
+def plot_training_history():
+
     # Plot Learning Curves
-    # Plot learning curves (loss vs. epochs and metrics vs. epochs) to check for overfitting or underfitting.
+    
+    history = pd.read_csv('hyper_model/best_model/best_model_history')
 
-    # history = model.history  # Assuming you've stored the history object during training
+    fig, (ax1, ax2) = plt.subplots(2, sharex=True)
+    fig.suptitle('Trainig history of the best model')
+    x_range = range(1, len(history['epoch']) + 1)
+    # R2 Score
+    ax1.plot(x_range, history['r2_score'], label='r2_score', marker='o', c='red')
+    ax1.plot(x_range, history['val_r2_score'], label='val_r2_score', marker='o', c='green', linestyle='--')
+    # ax1.set_title('R2_Score on Each Fold')
+    ax1.set_ylabel('R2_Score')
+    ax1.legend()
 
-    # print(history)
-    # plt.plot(history.history['loss'], label='train_loss')
-    # plt.plot(history.history['val_loss'], label='val_loss')
-    # plt.legend()
-    # plt.title('Loss Curve')
-    # plt.show()
+    # Loss
+    ax2.plot(x_range, history['loss'], label='loss', marker='o', c='red')
+    ax2.plot(x_range, history['val_loss'], label='val_loss', marker='o', c='green', linestyle='--')
+    # ax2.set_title('MAPE on Each Fold')
+    ax2.set_xlabel('Epoch')
+    ax2.set_ylabel('Loss (MSE)')
+    ax2.legend()
 
-    # plt.plot(history.history['metric'], label='train_metric')
-    # plt.plot(history.history['val_metric'], label='val_metric')
-    # plt.legend()
-    # plt.title('Metric Curve')
-    # plt.show()
+    plt.show()
 
-
+plot_model_prediction()
+plot_training_history()
 evaluate_model()
-plot_model()

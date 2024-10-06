@@ -1,8 +1,8 @@
 # Import necessary libraries
 import os
 import sys
-# sys.path.append('d:\\data sceince with python\\model_helpers')
 sys.path.append(os.path.abspath('') + os.path.sep + 'model_helpers')
+import tensorflow as tf
 from tensorflow import keras
 from variable_config import LOOK_BACK as look_back, EPOCHS, file_name
 from data_wrangler import data_wrangler, split_into_datasets
@@ -18,8 +18,8 @@ def train_model():
     X_train, X_val, X_test, y_train, y_val, y_test = split_into_datasets(X=X, y=y, look_back=look_back, get_val_set=True)
     
     # Create determinism and model reproducibility
-    # tf.keras.utils.set_random_seed(1)
-    # tf.config.experimental.enable_op_determinism()
+    tf.keras.utils.set_random_seed(42)
+    tf.config.experimental.enable_op_determinism()
 
     # Early stoping callbacks for best epoch
     early_stop = keras.callbacks.EarlyStopping(monitor='val_loss', min_delta=0.0001, patience=5, mode='min')
@@ -34,40 +34,27 @@ def train_model():
         save_freq='epoch'
     )
 
-    # Scheduler function for LearningRateScheduler
-    # def scheduler(epoch, lr):
-    #     return lr
-    # lr_scheduler = keras.callbacks.LearningRateScheduler(scheduler)
-    # callbacks = [early_stop, lr_scheduler]
+    # Saves the best model's training history
+    # append=True, it appends if file exists (useful for continuing training)
+    csv_logger = keras.callbacks.CSVLogger(filename='hyper_model/best_model/best_model_history', separator=',', append=False)
+
     # hb_tuner.search(X_train, y_train, epochs=EPOCHS, validation_data=(X_val, y_val), callbacks=[early_stop, check_point])
     hb_tuner.search(X_train, y_train, epochs=EPOCHS, validation_data=(X_val, y_val), callbacks=[early_stop, check_point])
 
-    # print('Search Space Summary:\n', hb_tuner.search_space_summary())
+    print('Search Space Summary:\n', hb_tuner.search_space_summary())
     print('Result Summary:\n', hb_tuner.results_summary())
 
     # Returns the best hyperparameters, as determined by the objective.
     # These hyperparameters can be used to reinstantiate the (untrained) best model found during the search process.
     best_hps = hb_tuner.get_best_hyperparameters(num_trials=1)[0]
-    print(best_hps.values)
+    print('Best hyperparameters\n:', best_hps.values)
 
     # Get the top 1 model.
     # best_model = tuner.get_best_models(num_models=1)[0]
     # Build the model with the optimal hyperparameters and train it on the data for user defined epochs
     model = hb_tuner.hypermodel.build(best_hps)
     # For best performance, it is recommended to retrain your Model on the full dataset using the best hyperparameters found during search
-    # history = model.fit(X_train, y_train, epochs=EPOCHS, validation_data=(X_val, y_val), callbacks=[early_stop])
-    history = model.fit(X_train, y_train, epochs=EPOCHS, validation_data=(X_val, y_val), callbacks=[early_stop])
-
-    # val_loss_per_epoch = model.history['val_loss']
-    # best_epoch = val_loss_per_epoch.index(min(val_loss_per_epoch)) + 1
-    # print('Best epoch: %d' % (best_epoch))
-
-    # After finding the best epochs, lets re-instantiate the hypermodel and  retrain it.
-    # best_model = hb_tuner.hypermodel.build(best_hps)
-    # best_model.fit(X_train, y_train, epochs=best_epoch, validation_data=(X_val, y_val))
-    # best_model.summary()
-    print('Model History:\n', history.history)
-    model.summary()
+    model.fit(X_train, y_train, epochs=EPOCHS, validation_data=(X_val, y_val), callbacks=[early_stop, csv_logger])
 
     # Saves the entire model in new high-level .keras format
     model.save('hyper_model/best_model/best_model.keras')

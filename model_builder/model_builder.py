@@ -1,17 +1,13 @@
 # Requires variable definitions for LOOK_BACK, MAX_EPOCHS, and DISABLE_RESUME
 import os
 import sys
-# sys.path.append('d:\\data sceince with python\\model_helpers')
 sys.path.append(os.path.abspath('') + os.path.sep + 'model_helpers')
-# print(sys.path)
 from variable_config import MAX_EPOCHS, DISABLE_RESUME, LOOK_BACK, executions_per_trial
 import keras_tuner as kt
 from tensorflow import keras
 
 # Define the stacked LSTM model
 class CustomHyperModel(kt.HyperModel):
-
-    # steps = look_back["look_back"]
 
     def build(self, hp):
         model = keras.Sequential()
@@ -66,7 +62,6 @@ class CustomHyperModel(kt.HyperModel):
             optimizer=keras.optimizers.Adam(learning_rate=learning_rate),
             # Optimizer tries to minimize the loss function when training the model.
             # loss=keras.losses.MeanAbsoluteError(),
-            # loss='mean_absolute_error',
             loss=keras.losses.MeanSquaredError(),
             # optimizer=optimizer,
             # loss=loss,
@@ -78,7 +73,6 @@ class CustomHyperModel(kt.HyperModel):
             # the metric is important for few Keras callbacks like EarlyStopping when one wants to stop 
             # training the model in case the metric isn't improving for a certaining no. of epochs.
             # metrics=['mean_absolute_error', 'mean_absolute_percentage_error', 'mean_squared_error', 'r2_score']
-            # metrics=['mean_absolute_error']
             metrics=[keras.metrics.MeanAbsoluteError(), keras.metrics.MeanAbsolutePercentageError(), keras.metrics.R2Score()]
             # metrics=[metrics]
         )
@@ -113,8 +107,6 @@ class CustomHyperModel(kt.HyperModel):
 hb_tuner = kt.Hyperband(
     # create_stacked_lstm_model,
     CustomHyperModel(),
-    # objective='val_mean_absolute_error',
-    # objective=kt.Objective(name='val_mean_absolute_percentage_error', direction='min'),
     objective=kt.Objective(name='val_loss', direction='min'),
     # objective=kt.Objective(name='val_mean_absolute_error', direction='min'),
     
