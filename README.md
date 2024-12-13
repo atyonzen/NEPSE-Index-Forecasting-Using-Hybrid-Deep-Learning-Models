@@ -1,1 +1,1 @@
-# Stock-Index-Forecasting-with-LSTM-Model
+# NEPSE Index Forecasting with Hybrid Deep Learning Models
