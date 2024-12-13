@@ -2,14 +2,10 @@
 import os
 import sys
 sys.path.append(os.path.abspath('') + os.path.sep + 'model_helpers')
-import keras_tuner as kt
 from variable_config import MAX_EPOCHS, DISABLE_RESUME, LOOK_BACK, executions_per_trial
+import keras_tuner as kt
 from tensorflow import keras
 from keras.api.layers import LSTM, GRU
-import pandas as pd
-import numpy as np
-# import pickle
-import csv
 
 
 # This code make sure that each time you run your code, your neural network weights will be initialized equally.
@@ -18,136 +14,12 @@ seed(42)
 from tensorflow import random
 random.set_seed(42)
 
-# Define the custom tuner.
-class CustomTuner(kt.Hyperband):
-    
-    # Check if run_trail() is running for the first time.
-    first_run = True
-    
-    # Create dictionary values of matrics per index.
-    def create_dict_keys_values(self, history):    
-        # List container for dictionary
-        dict_list = []
-        # Create dictionary keys
-        dict_keys = ['epoch'] + list(history.history.keys())
-        
-        for i in range(len(history.epoch)):
-            epoch = history.epoch[i] + 1
-            dict_values_per_index = [
-                epoch,
-                history.history['loss'][i],
-                history.history['mean_absolute_error'][i],
-                history.history['mean_absolute_percentage_error'][i],
-                history.history['mean_squared_error'][i],
-                history.history['r2_score'][i],
-                history.history['val_loss'][i],
-                history.history['val_mean_absolute_error'][i],
-                history.history['val_mean_absolute_percentage_error'][i],
-                history.history['val_mean_squared_error'][i],
-                history.history['val_r2_score'][i],
-            ]
-            new_dict = dict(zip(dict_keys, dict_values_per_index))
-            dict_list.append(new_dict)
-        return dict_list
-    
-    def run_trial(self, trial, *args, **kwargs):
-        
-        # List to hold dictionaries
-        list_of_dicts = []
-        trial_id = trial.trial_id
-        # Unpack hyperparameters
-        hp = trial.hyperparameters
-        # Extract model type
-        model_type = self.hypermodel.layer.__module__.split('.')[-1]
-        csv_file = f'hyper_model/history/{model_type}/history_trial_{trial_id}.csv'
-        # Create the directory if it doesn't exist
-        # The exist_ok=True ensures no error is raised if the directory already exists.
-        os.makedirs(os.path.dirname(csv_file), exist_ok=True)
-                
-        for _ in range(self.executions_per_trial):
-            # Customize kwargs with successive epoch and initial_epoch
-            kwargs['epochs']=hp['tuner/epochs']
-            kwargs['initial_epoch']=hp['tuner/initial_epoch']
-            
-            # Build and train the model
-            model = self.hypermodel.build(hp)
-            history = model.fit(
-                *args,
-                batch_size=hp.Choice('batch_size', values=[8, 16, 24, 32, 40, 48, 56]),
-                **kwargs
-            )
-        
-            # # Save the history for this trial
-            # trial.history = history.history
-        
-            # print('history:', history.history)
-            print('epoch:', history.epoch)
-
-            # Report the final result
-            # Pass the min validation metrics to the tuner
-            self.oracle.update_trial(trial_id, {'val_loss': min(history.history['val_loss'])})
-            self.oracle._save_trial(trial)
-            # self.oracle.save()
-            
-            dicts = self.create_dict_keys_values(history)
-            # Concantenate the dicts on each loop.
-            list_of_dicts = list_of_dicts + dicts
-            
-            # If resume is disable, then delete the .csv files.
-            if self.first_run and DISABLE_RESUME:
-                for root, dirs, files in os.walk(os.path.dirname(csv_file), topdown=True):
-                    for file in files:
-                        if '.csv' in file:
-                            os.remove(os.path.join(root, file))
-                # Make first_run false only if it is True for furthur execution of run_trail().
-                if self.first_run == True:
-                    self.first_run = False
-        
-        
-        # Calculate average across execution per trials.
-        # Create a DataFrame
-        df = pd.DataFrame(list_of_dicts)
-        # Replace inf value with nan
-        # df.replace([np.inf, -np.inf], np.nan, inplace=True)
-        # Group by 'epoch' to calculate averages and preserve 'epoch' as column header
-        df_avgs = df.groupby(by='epoch', as_index=False, dropna=True).mean()
-        # print(df_avgs[['mean_squared_error','val_mean_squared_error']])
-        # Convert the result to dictionary object as records.
-        list_of_dicts_avgs = df_avgs.to_dict(orient='records')
-        dict_keys = list(df_avgs.columns)
-          
-        # Save history to csv file
-        # if not file exits, then open with 'w' mode
-        if not os.path.exists(csv_file):
-            with open(csv_file, 'w', newline='') as file:
-                
-                writer = csv.DictWriter(
-                    file,
-                    fieldnames=dict_keys
-                )
-                # Write header (column names)
-                writer.writeheader()
-                for dict in list_of_dicts_avgs:
-                    # Write rows
-                    writer.writerows([dict])
-        
-        # Save the history for this trial
-        # trial.history = history.history
-        
-           
-        # Save the training history to a file for each trial
-        # history_file = f'hyper_model/history/history_trial_{trial_id}.pkl'
-        
-        # with open(history_file, 'wb') as f:
-        #     pickle.dump(history.history, f)
-
-
-# Define the Hybrid model structure.       
+# Define the Hybrid model structure.
 class CustomHyperModel(kt.HyperModel):
     
     def __init__(self, layer=LSTM):
         self.layer = layer
-        
+
     def build(self, hp):
         model = keras.Sequential()
         # This is the recommended approach to define input shape in keras
@@ -217,11 +89,52 @@ class CustomHyperModel(kt.HyperModel):
         )
 
         return model
+    
+    def fit(self, hp, model, *args, **kwargs):
+        # lr = hp.get('learning_rate')
+        print('epochs:', hp['tuner/epochs'],
+              'initial_epoch:', hp['tuner/initial_epoch'], 
+              'bracket:', hp['tuner/bracket'], 
+              'round:', hp['tuner/round']
+              )
+        if 'tuner/trial_id' in hp:
+            # past_trial = hp['tuner/trial_id'] # self.oracle.get_trial(hp['tuner/trial_id'])
+            print('trail_id:', hp['tuner/trial_id'])
+        print('\n\n')
+        # print(vars(model))
+        # print(kwargs.keys())
+        print('Epochs from kwargs:\n', kwargs['epochs'])
+        # print(args[0].shape, args[1].shape)
+        # print(kwargs.keys())
+        # kwargs["epochs"] value is set by max_epochs in HyperBand tuner object
+        # max_epochs is causing duplicate values when hypertuning epochs in model.fit() function.
+        # Therefore, epochs value is revomed from kwargs.
+        # if 'epochs' in kwargs:
+        #     kwargs.pop('epochs')
+
+        # Ensure validation data is passed correctly
+        if 'validation_data' not in kwargs:
+            raise ValueError("Validation data must be provided in the fit method for validation metrics to be logged.")
+        
+        # history = model.fit(
+        return model.fit(
+            *args,
+            # validation_data=kwargs['validation_data'],
+            # Tune the appropriate batch size
+            batch_size=hp.Choice('batch_size', values=[8, 16, 24, 32, 40, 48, 56]),
+            # epochs=hp.Int('epochs', min_value=1, max_value=500, sampling='log'),
+            **kwargs,
+        )
+        # print(vars(history))
+        # print(history.params)
+        # print(history.epoch)
+        # print(history.history)
+        # return history
 
 
 # Hyperband Tuner for LSTM-Dense Model
-hb_tuner_lstm = CustomTuner(
-    hypermodel=CustomHyperModel(LSTM),
+hb_tuner_lstm = kt.Hyperband(
+    CustomHyperModel(LSTM),
     objective=kt.Objective(name='val_loss', direction='min'),
     # objective=kt.Objective(name='val_mean_absolute_error', direction='min'),
     
@@ -244,8 +157,8 @@ hb_tuner_lstm = CustomTuner(
 )
 
 # Hyperband Tuner for GRU-Dense Model
-hb_tuner_gru = CustomTuner(
-    hypermodel=CustomHyperModel(GRU),
+hb_tuner_gru = kt.Hyperband(
+    CustomHyperModel(GRU),
     objective=kt.Objective(name='val_loss', direction='min'),
     # objective=kt.Objective(name='val_mean_absolute_error', direction='min'),
     

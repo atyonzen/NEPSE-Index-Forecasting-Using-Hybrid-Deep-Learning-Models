@@ -2,7 +2,14 @@
 # Ignore the entire directory
 /extra_backup
 /hyper_model/best_model/*.keras
-/hyper_model/tuning
+/hyper_model/tensor_board
+/hyper_model/tuning_gru
+/hyper_model/tuning_lstm
+/hyper_model/tuning_100_100
+/hyper_model/tuning_200_200
+/hyper_model/tuning_10_200
+/hyper_model/tuning_test
+/hyper_model/history
 /hyper_model/check_point/*.keras
 /__pycache__
 /.venv

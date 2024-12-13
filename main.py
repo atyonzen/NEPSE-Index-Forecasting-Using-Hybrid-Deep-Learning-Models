@@ -17,6 +17,7 @@ file_path = f'./data_src/{file_name}.csv'
 if(not os.path.isfile(file_path)):
     os.system('python model_helpers/web_scrapper.py')
 
-os.system('python model_builder/model_builder.py')
-os.system('python model_builder/model_trainer.py')
-os.system('python model_builder/model_evaluator.py')
+# os.system('python model_builder/model_builder.py')
+# os.system('python model_builder/model_trainer.py')
+os.system('python model_evaluator/lstm_model_evaluator.py')
+os.system('python model_evaluator/gru_model_evaluator.py')

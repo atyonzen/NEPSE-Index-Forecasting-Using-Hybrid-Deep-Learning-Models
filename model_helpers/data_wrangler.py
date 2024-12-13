@@ -1,20 +1,36 @@
 # Import necessary libraries
 import numpy as np
 import pandas as pd
+import os
 from sklearn.preprocessing import MinMaxScaler
 from sklearn.model_selection import train_test_split
-from variable_config import LOOK_BACK
+from variable_config import LOOK_BACK, future_steps
 
 # Prepares feature and lebel according to the window size
 # LOOK_BACK is the number of previous days' prices (window size) to consider for prediction
-def data_wrangler(file_name, look_back=LOOK_BACK, transform_data = True):
+def data_wrangler(file_name, look_back=LOOK_BACK, transform_data = True, unseen=False):
 
     # read csv file
-    df = pd.read_csv(f'data_src/{file_name}.csv')
+    raw_data = pd.read_csv(f'data_src/{file_name}.csv')
+
+    # Drop last duplicate on Date column.
+    # print(raw_data.duplicated(subset=['Date'], keep='last').loc[lambda x : x == True])
+    prep_data = raw_data.drop_duplicates(subset=['Date'], keep='last', inplace=False)
+
+    # Drop the rows where at least one element is missing.
+    # print(raw_data.isnull())
+    prep_data = prep_data.dropna()
+
+    # Convert the string date to python datatime object.
+    prep_data['Date'] = pd.to_datetime(arg=prep_data['Date'], format='%d-%m-%y')
+
+    # Usage of assignment operator along with inplace parameter results in NoneType data.
+    # Avoid using assignment operator when you use inplace parameter.
+    prep_data.sort_values(by=['Date'], inplace=True)
 
     # remove columns which the neural network will not use
     # df = df.drop(['Symbol', 'Date', 'Open', 'High', 'Low', 'Percent Change', 'Volume'], axis=1)
-    df = df[['Close']]
+    df = prep_data[['Close']]
 
     # Transform data
     if(transform_data):
@@ -22,10 +38,17 @@ def data_wrangler(file_name, look_back=LOOK_BACK, transform_data = True):
         # In reshape(-1, 1), -1 means to infer the number of rows automatically and column 1. 
         # This reshaping is needed because the MinMaxScaler expects the input data to be 2D 
         # (with rows as individual data points and columns as features).
-        df['Close'] = scaler.fit_transform(df['Close'].values.reshape(-1, 1))
+        df.loc[:, 'Close'] = scaler.fit_transform(df['Close'].values.reshape(-1, 1)).flatten().astype('float64')
     
     # Numpy ndarray
     data = df['Close'].values
+
+    # Spare out-of-sample data to visually evaluate the prediction made by walk forward validation.
+    if(unseen):
+        unseen_data = data[-future_steps:]
+        data = data[: len(data) - future_steps]
+    else:
+        unseen_data = None
 
     X, y = [], []
     for i in range(len(data)):
@@ -38,9 +61,9 @@ def data_wrangler(file_name, look_back=LOOK_BACK, transform_data = True):
         y.append(seq_y)
     
     if(transform_data):
-        return np.array(X), np.array(y), data, scaler
+        return np.array(X), np.array(y), scaler, raw_data, prep_data, data, unseen_data
     else:
-        return np.array(X), np.array(y), data
+        return np.array(X), np.array(y), None, raw_data, prep_data, data, unseen_data
 
 
 # Splits dataset into training, validation and testing sets
