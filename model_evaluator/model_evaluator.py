@@ -17,15 +17,16 @@ from model_builder import hb_tuner_lstm, hb_tuner_gru
 os.environ['KERAS_BACKEND'] = 'tensorflow'
 os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'
 
+# Set the global random seed to control the entire process of randomization.
 # Create determinism and model reproducibility
 tf.keras.utils.set_random_seed(42)
 tf.config.experimental.enable_op_determinism()
 
 # This code make sure that each time you run your code, your neural network weights will be initialized equally.
-from numpy.random import seed
-seed(42)
-from tensorflow import random
-random.set_seed(42)
+np.random.seed(42)
+tf.random.set_seed(42)
+import random
+random.seed(42)
 
 # Call data_wrangler to create features and label
 X, y, scaler, raw_data, prep_data, data, unseen_data = data_wrangler(file_name, look_back, unseen=UNSEEN)
@@ -35,10 +36,6 @@ X_train, X_val, X_test, y_train, y_val, y_test = split_into_datasets(X, y, look_
 
 # Early stoping callbacks for best epoch
 early_stop = keras.callbacks.EarlyStopping(monitor='loss', min_delta=0.0001, patience=10, mode='min')
-
-# print(np.array(unseen_data).shape)
-# print(np.array(unseen_data).reshape(-1, 1).shape)
-# exit()
 
 def evaluate_model(tuner):
     # Extract model type from tuner object.
@@ -55,14 +52,6 @@ def evaluate_model(tuner):
     test_result = model.evaluate(X_test, y_test)
     print(f'Evaluation of {model_type.upper()} model:\n')
     print(f'Test Metrics Loss(MSE), MSE, MAE, MAPE, and R2: {[round(elem, 6) for elem in test_result]}')
-    # print(
-    #     'Test Evaluation of lstm model:\n',
-    #     'mae: %1f, mape: %2f, r2_score: %3f]:' % (
-    #     scaler.inverse_transform(np.array([test_result[1]]).reshape(-1, 1))[0][0],
-    #     test_result[2],
-    #     test_result[3]
-    #     )
-    # )
 
     # https://forecastegy.com/posts/time-series-cross-validation-python/
     # So make sure your data is sorted before using this method.
@@ -101,7 +90,7 @@ def evaluate_model(tuner):
         fold_results['mape'].append(round(metrics[3], 6))
         fold_results['r2_score'].append(round(metrics[4], 6))
 
-    print(f'{k_fold}-Fold results: \n', fold_results)
+    print(f'{k_fold}-Fold results of {model_type.upper()} model: \n', fold_results)
     # Average performance across all folds
     average_mse = round(np.mean(fold_results['mse']), 6)
     average_mae = round(np.mean(fold_results['mae']), 6)
@@ -111,6 +100,15 @@ def evaluate_model(tuner):
     print(f"Average Test MAE across all folds: {average_mae}")
     print(f"Average Test MAPE across all folds: {average_mape}")
     print(f"Average Test R2_Score across all folds: {average_r2_score}")
+    
+    # Create Dataframes of time series validation results and average results of metrics
+    df_ts_results = pd.DataFrame(fold_results)
+    df_ts_average = pd.DataFrame({'average': [average_mse, average_mae, average_mape, average_r2_score]})
+    # Concate the DataFrames with transposition of later and save to .csv file
+    df_ts_average = df_ts_average.T
+    df_ts_average.columns = ['mse', 'mae', 'mape', 'r2_score']
+    df_ts_results = pd.concat([df_ts_results, df_ts_average], axis=0)
+    df_ts_results.to_csv(f'hyper_model/best_model/{k_fold}_fold_ts_results_of_{model_type}_model.csv')
 
     # Max and min values
     max_mse = np.max(fold_results['mse'])
@@ -196,16 +194,19 @@ def evaluate_model(tuner):
 
     plt.show()
 
-def plot_lstm_model_prediction():
+def plot_model_prediction(tuner):
 
     # This code make sure that each time you run your code, your neural network weights will be initialized equally.
-    from numpy.random import seed
-    seed(42)
-    from tensorflow import random
-    random.set_seed(42)
+    # from numpy.random import seed
+    # seed(42)
+    # from tensorflow import random
+    # random.set_seed(42)
+    
+    # Extract model type from tuner object.
+    model_type = tuner.hypermodel.layer.__module__.split('.')[-1]
 
     # model = keras.models.load_model('hyper_model/best_model/best_model.keras')
-    model = keras.models.load_model('hyper_model/best_model/best_lstm_model.keras')
+    model = keras.models.load_model(f'hyper_model/best_model/best_{model_type}_model.keras')
 
     # Create dataframe from 1D numy array
     df = pd.DataFrame(data, columns=['Close'])
@@ -241,7 +242,7 @@ def plot_lstm_model_prediction():
     # Predict for coming future
     future_data = data[-look_back:].reshape(-1, look_back, 1)
     predicted_prices = []
-    for i in range(future_steps):
+    for _ in range(future_steps):
         prediction = model.predict(future_data)
         predicted_prices.append(prediction)
         # Rolls the first item of future_data to last along axis 1
@@ -267,21 +268,23 @@ def plot_lstm_model_prediction():
     plt.plot(futurePredictPlot, label='Future Predicted Prices')
     plt.xlabel('Days')
     plt.ylabel('Close')
-    plt.title('NEPSE Index Prediction with LSTM-Dense Model')
+    plt.title(f'NEPSE Index Prediction with {model_type.upper()}-Dense Model')
     plt.grid(True)
     plt.legend(loc='best')
     plt.show()
 
-def test_plot_lstm_model_prediction(unseen_data=None):
+def test_plot_model_prediction(tuner, unseen_data=None):
    
     # This code make sure that each time you run your code, your neural network weights will be initialized equally.
-    from numpy.random import seed
-    seed(42)
-    from tensorflow import random
-    random.set_seed(42)
-
-    # model = keras.models.load_model('hyper_model/best_model/best_model.keras')
-    model = keras.models.load_model('hyper_model/best_model/best_lstm_model.keras')
+    # from numpy.random import seed
+    # seed(42)
+    # from tensorflow import random
+    # random.set_seed(42)
+    
+    # Extract model type from tuner object.
+    model_type = tuner.hypermodel.layer.__module__.split('.')[-1]
+    # Load the best model.
+    model = keras.models.load_model(f'hyper_model/best_model/best_{model_type}_model.keras')
 
     # Create dataframe from 1D numy array
     df = pd.DataFrame(y_test, columns=['Close'])
@@ -298,11 +301,12 @@ def test_plot_lstm_model_prediction(unseen_data=None):
     testPredictPlot[:, :] = np.nan
     testPredictPlot[:, :] = test_predict
 
-    plt.plot(scaler.inverse_transform(df), label='Actual Prices', linestyle='dashed')
-    plt.plot(testPredictPlot, label='Predicted Prices')
+    plt.plot(scaler.inverse_transform(df), label='Actual Index', linestyle='dashed')
+    plt.plot(testPredictPlot, label='Predicted Index')
 
     # If unseen is True, then only plot the unseen prices and predicted prices
     if unseen_data is not None:
+    
         # Walk Forward Validation to future prices
         # Split whole data into training and test sets
         # test set contains single observation and remaining in the training set.
@@ -318,7 +322,7 @@ def test_plot_lstm_model_prediction(unseen_data=None):
 
         # Predict future prices with walk forward validation.
         predicted_prices = []
-        for i in range(future_steps):
+        for _ in range(future_steps):
             model.fit(x=X, y=y, epochs=EPOCHS, callbacks=[early_stop])
             y_pred = model.predict(X_wfv_test.reshape(-1, look_back, 1))
             predicted_prices.append(y_pred)
@@ -345,39 +349,42 @@ def test_plot_lstm_model_prediction(unseen_data=None):
 
     plt.xlabel('Days')
     plt.ylabel('Close')
-    plt.title('NEPSE Index Prediction with LSTM-Dense Model')
+    plt.title(f'NEPSE Index Prediction with {model_type.upper()}-Dense Model')
     plt.grid(True)
     plt.legend(loc='best')
     plt.show()
 
-def plot_lstm_training_history():
+def plot_training_history():
+        
+    # Load the training history of the model.
+    history_lstm = pd.read_csv('hyper_model/best_model/best_lstm_model_history.csv')
+    history_gru = pd.read_csv('hyper_model/best_model/best_gru_model_history.csv')
 
     # Plot Learning Curves
+    # Training Learning Curves
     
-    history = pd.read_csv('hyper_model/best_model/best_lstm_model_history.csv')
-
-    fig, (ax1, ax2) = plt.subplots(2, sharex=True)
-    fig.suptitle('Trainig History of LSTM-Dense Model')
-    x_range = range(1, len(history['epoch']) + 1)
-    # R2 Score
-    ax1.plot(x_range, history['r2_score'], label='r2_score', marker='o', c='red')
-    ax1.plot(x_range, history['val_r2_score'], label='val_r2_score', marker='o', c='green', linestyle='--')
-    # ax1.set_title('R2_Score on Each Fold')
-    ax1.set_ylabel('R2_Score')
+    fig, (ax1, ax2) = plt.subplots(2, sharex=False)
+    fig.suptitle(f'Training Learning Curves of Hybrid Models')
+    x_range_lstm = range(1, len(history_lstm['epoch']) + 1)
+    x_range_gru = range(1, len(history_gru['epoch']) + 1)
+    
+    # LSTM-Dense Model Loss
+    ax1.plot(x_range_lstm, history_lstm['loss'], label='LSTM-Dense Model', marker='o', c='red')
+    ax1.set_xlabel('Epoch')
+    ax1.set_ylabel('loss (MSE)')
     ax1.legend()
 
-    # Loss
-    ax2.plot(x_range, history['loss'], label='loss', marker='o', c='red')
-    ax2.plot(x_range, history['val_loss'], label='val_loss', marker='o', c='green', linestyle='--')
-    # ax2.set_title('MAPE on Each Fold')
+    # GRU-Dense Model Loss
+    ax2.plot(x_range_gru, history_gru['loss'], label='GRU-Dense Model', marker='o', c='green', linestyle='--')
     ax2.set_xlabel('Epoch')
     ax2.set_ylabel('Loss (MSE)')
     ax2.legend()
 
     plt.show()
 
-# plot_lstm_model_prediction()
-test_plot_lstm_model_prediction(unseen_data)
-# plot_lstm_training_history()
-evaluate_model(hb_tuner_lstm)
-evaluate_model(hb_tuner_gru)
+# plot_model_prediction(hb_tuner_lstm)
+# plot_training_history()
+# evaluate_model(hb_tuner_lstm)
+test_plot_model_prediction(hb_tuner_lstm, unseen_data)
+# evaluate_model(hb_tuner_gru)
+test_plot_model_prediction(hb_tuner_gru, unseen_data)

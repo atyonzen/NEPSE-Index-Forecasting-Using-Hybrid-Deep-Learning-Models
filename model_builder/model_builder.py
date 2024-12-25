@@ -95,7 +95,7 @@ class CustomTuner(kt.Hyperband):
             
             # If resume is disable, then delete the .csv files.
             if self.first_run and DISABLE_RESUME:
-                for root, dirs, files in os.walk(os.path.dirname(csv_file), topdown=True):
+                for root, _, files in os.walk(os.path.dirname(csv_file), topdown=True):
                     for file in files:
                         if '.csv' in file:
                             os.remove(os.path.join(root, file))
