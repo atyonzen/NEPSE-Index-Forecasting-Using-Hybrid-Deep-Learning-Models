@@ -1,4 +1,4 @@
-# NEPSE Index Forecasting with Hybrid Deep Learning Models
+# NEPSE Index Forecasting Using Hybrid Deep Learning Models
 The codes in this repository use the Keras hyperparameters optimization framework and Hyperband algorithm to automatically tune the hyperparameter of hybrid deep learning models—LSTM-Dense and GRU-Dense models—to forecast the closing NEPSE index using only the past closing index. It uses the dropout and early_stopping regularization techniques to prevent the model from overfitting.
 
 ## Introduction
